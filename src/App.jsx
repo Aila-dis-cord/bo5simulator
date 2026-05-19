@@ -13,6 +13,7 @@ function App() {
   const [weapons, setWeapons] = useState([]);
   const [workerReady, setWorkerReady] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [simulationProgress, setSimulationProgress] = useState(0);
   const [mode, setMode] = useState('global'); // 'global' or 'target'
   const [metaPolicy, setMetaPolicy] = useState('exclusion'); // 'exclusion', 'soft', 'uniform'
   const [wmSortPolicy, setWmSortPolicy] = useState('winrate'); // 'winrate', 'draws'
@@ -39,6 +40,12 @@ function App() {
     }
     return [];
   });
+  const [isAdmin, setIsAdmin] = useState(() => sessionStorage.getItem('isAdmin') === 'true');
+  const [showLogin, setShowLogin] = useState(false);
+  const [loginId, setLoginId] = useState('');
+  const [loginPass, setLoginPass] = useState('');
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
+
   const [isExtraWeaponFormOpen, setIsExtraWeaponFormOpen] = useState(false);
   const [isMasterConfigsOpen, setIsMasterConfigsOpen] = useState(true);
   const [myWeaponSearchQuery, setMyWeaponSearchQuery] = useState('');
@@ -48,30 +55,40 @@ function App() {
   const [editingExtraWeaponId, setEditingExtraWeaponId] = useState(null);
   const [newExtraWeaponName, setNewExtraWeaponName] = useState('');
   const [newExtraWeaponSkills, setNewExtraWeaponSkills] = useState([
-    { name: '', type: TYPES.UPPER, atk: 0, def: 0, uses: 1, icon: '', desc: '' },
-    { name: '', type: TYPES.MID, atk: 0, def: 0, uses: 1, icon: '', desc: '' },
-    { name: '', type: TYPES.LOWER, atk: 0, def: 0, uses: 1, icon: '', desc: '' },
-    { name: '', type: TYPES.ULT, atk: 0, def: 0, uses: 1, icon: '', desc: '' },
-    { name: '', type: TYPES.FORM, atk: 0, def: 0, uses: 1, icon: '', desc: '' }
+    { name: '', type: TYPES.UPPER, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false },
+    { name: '', type: TYPES.MID, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false },
+    { name: '', type: TYPES.LOWER, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false },
+    { name: '', type: TYPES.ULT, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false },
+    { name: '', type: TYPES.FORM, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false }
   ]);
+  
+  const hashPassword = async (pwd) => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(pwd);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
   
   const resetExtraWeaponForm = () => {
     setEditingExtraWeaponId(null);
     setNewExtraWeaponName('');
     setNewExtraWeaponSkills([
-      { name: '', type: TYPES.UPPER, atk: 0, def: 0, uses: 1, icon: '', desc: '' },
-      { name: '', type: TYPES.MID, atk: 0, def: 0, uses: 1, icon: '', desc: '' },
-      { name: '', type: TYPES.LOWER, atk: 0, def: 0, uses: 1, icon: '', desc: '' },
-      { name: '', type: TYPES.ULT, atk: 0, def: 0, uses: 1, icon: '', desc: '' },
-      { name: '', type: TYPES.FORM, atk: 0, def: 0, uses: 1, icon: '', desc: '' }
+      { name: '', type: TYPES.UPPER, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false },
+      { name: '', type: TYPES.MID, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false },
+      { name: '', type: TYPES.LOWER, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false },
+      { name: '', type: TYPES.ULT, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false },
+      { name: '', type: TYPES.FORM, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false }
     ]);
   };
 
   const [wmSelectedWeaponId, setWmSelectedWeaponId] = useState('');
   const [wmSelectedSkills, setWmSelectedSkills] = useState([0, 0, 0, 0, 0]);
   const [wmLastSimulatedWeaponId, setWmLastSimulatedWeaponId] = useState(null);
+  const [lastSimulatedMyWeaponId, setLastSimulatedMyWeaponId] = useState(null);
   
   const [results, setResults] = useState(null);
+  const importFileRef = useRef(null);
   
   const workerRef = useRef(null);
   
@@ -89,8 +106,10 @@ function App() {
 
   useEffect(() => {
     if (filteredWmWeapons.length > 0 && !filteredWmWeapons.some(w => w.id.toString() === wmSelectedWeaponId.toString())) {
-      setWmSelectedWeaponId(filteredWmWeapons[0].id.toString());
-      setWmSelectedSkills([0, 0, 0, 0, 0]);
+      const firstW = filteredWmWeapons[0];
+      setWmSelectedWeaponId(firstW.id.toString());
+      const firstValidSkillIdx = firstW.skills.findIndex(s => !s.isOld);
+      setWmSelectedSkills(Array(5).fill(firstValidSkillIdx === -1 ? 0 : firstValidSkillIdx));
     }
   }, [wmWeaponSearchQuery, allWeapons]);
 
@@ -118,9 +137,12 @@ function App() {
       workerRef.current.onmessage = (e) => {
         if (e.data.type === 'INIT_DONE') {
           setWorkerReady(true);
-        } else if (e.data.type === 'SIMULATE_RESULT' || e.data.type === 'SIMULATE_MASTERS_RESULT') {
+        } else if (e.data.type === 'SIMULATE_RESULT' || e.data.type === 'SIMULATE_MASTERS_RESULT' || e.data.type === 'SIMULATE_DESTROYER_RESULT') {
           setResults(e.data.topConfigs);
           setIsSimulating(false);
+          setSimulationProgress(100);
+        } else if (e.data.type === 'SIMULATE_DESTROYER_PROGRESS') {
+          setSimulationProgress(e.data.progress);
         } else if (e.data.type === 'UPDATE_EXTRA_WEAPONS_DONE') {
           // Additional handling if needed
         }
@@ -138,7 +160,9 @@ function App() {
 
   const handleSimulate = () => {
     if (!workerReady) return;
-    if (mode !== 'weaponmaster' && !myWeaponId) return;
+    if (mode !== 'weaponmaster' && mode !== 'weaponmaster_destroyer' && !myWeaponId) return;
+    setSimulationProgress(0);
+    setLastSimulatedMyWeaponId(parseInt(myWeaponId, 10));
     
     let targetIds = [];
     if (mode === 'target') {
@@ -170,6 +194,27 @@ function App() {
         myWeaponId: parseInt(myWeaponId, 10),
         targetConfigs: targetConfigs,
         wmSortPolicy
+      });
+    } else if (mode === 'weaponmaster_destroyer') {
+      const targetConfigs = weaponMasterConfigs;
+      
+      if (targetConfigs.length === 0) {
+        alert("登録されているウェポンマスター構成が1つもありません。先にウェポンマスターモードで敵の構成を記録してください。");
+        return;
+      }
+      
+      if (targetConfigs.some(c => c.sequence.includes(-1))) {
+        alert("空欄のスキルが含まれている構成があります。先に構成を修正または削除してください。");
+        return;
+      }
+      
+      setIsSimulating(true);
+      setResults(null);
+      
+      workerRef.current.postMessage({
+        type: 'SIMULATE_DESTROYER',
+        myWeaponId: parseInt(myWeaponId, 10),
+        targetConfigs: targetConfigs
       });
     } else {
       setIsSimulating(true);
@@ -270,6 +315,7 @@ function App() {
       setExtraWeapons(updatedWeapons);
       setWeaponMasterConfigs(weaponMasterConfigs.map(c => {
         if (c.weaponId === editingExtraWeaponId) {
+          if (isMaintenanceMode) return c; // Skip all destructive checks
           const newSequence = [...c.sequence];
           const useCounts = {};
           for (let i = 0; i < 5; i++) {
@@ -318,13 +364,56 @@ function App() {
   };
 
   const handleAddExtraSkill = () => {
-    setNewExtraWeaponSkills([...newExtraWeaponSkills, { name: '', type: TYPES.UPPER, atk: 0, def: 0, uses: 1, icon: '', desc: '' }]);
+    setNewExtraWeaponSkills([...newExtraWeaponSkills, { name: '', type: TYPES.UPPER, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false }]);
   };
 
   const handleRemoveExtraSkill = (index) => {
     if (newExtraWeaponSkills.length > 1) {
-      setNewExtraWeaponSkills(newExtraWeaponSkills.filter((_, i) => i !== index));
+      if (window.confirm('この技を削除しますか？\n（すでに登録されている構成を維持するため、削除ではなく「旧」タグが付与されます）')) {
+        const s = [...newExtraWeaponSkills];
+        s[index].isOld = true;
+        setNewExtraWeaponSkills(s);
+      }
     }
+  };
+
+  const handleExport = () => {
+    const exportData = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      weaponMasterConfigs,
+      extraWeapons
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bo5_data_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.weaponMasterConfigs || !data.extraWeapons) {
+          alert('不正なファイル形式です。Bo5 Simulatorのエクスポートファイルを選択してください。');
+          return;
+        }
+        if (!window.confirm(`インポートすると現在のデータを上書きします。\nウェポンマスター構成: ${data.weaponMasterConfigs.length}件\nカスタム武器: ${data.extraWeapons.length}件\n\nよろしいですか？`)) return;
+        setWeaponMasterConfigs(data.weaponMasterConfigs);
+        setExtraWeapons(data.extraWeapons);
+        alert('インポートが完了しました。');
+      } catch (err) {
+        alert('ファイルの読み込みに失敗しました: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   if (!workerReady) {
@@ -337,6 +426,7 @@ function App() {
   }
 
   const selectedWeapon = weapons.find(w => w.id === parseInt(myWeaponId, 10));
+  const simulatedWeapon = allWeapons.find(w => w.id === lastSimulatedMyWeaponId);
 
   const emptyConfigWeapons = Array.from(new Set(
     weaponMasterConfigs
@@ -346,21 +436,64 @@ function App() {
         return w ? w.name : '不明';
       })
   ));
+  
+  const unconfiguredWeapons = allWeapons.filter(w => !weaponMasterConfigs.some(c => c.weaponId === w.id));
+  
+  const selectedEnemyWeaponForLegacyCheck = allWeapons.find(w => w.id === parseInt(wmSelectedWeaponId, 10));
+  const hasLegacyConfig = mode === 'weaponmaster' && 
+    weaponMasterConfigs
+      .filter(c => c.weaponId === parseInt(wmSelectedWeaponId, 10))
+      .some(c => c.sequence.some(sIdx => sIdx !== -1 && selectedEnemyWeaponForLegacyCheck?.skills[sIdx]?.isOld));
 
   return (
     <div>
-      <header>
+      <header style={{position: 'relative'}}>
+        <input
+          type="file"
+          accept=".json"
+          ref={importFileRef}
+          onChange={handleImportFile}
+          style={{ display: 'none' }}
+        />
+        {isAdmin ? (
+          <button className="admin-login-btn" onClick={() => { setIsAdmin(false); sessionStorage.removeItem('isAdmin'); }}>Admin Logout</button>
+        ) : (
+          <button className="admin-login-btn" onClick={() => setShowLogin(true)}>Admin Login</button>
+        )}
         <h1>Bo5 Simulator</h1>
         <p className="subtitle">最適構成を見つけ出すゲーム勝率計算ツール</p>
         <p className="meta-notice" style={{color: '#ffb86c', fontSize: '0.85rem', marginTop: '5px'}}>
-          {mode !== 'weaponmaster' && metaPolicy === 'exclusion' && "※完全メタ（五手目奥義/無形）想定ロジック：非メタ構成を除外中"}
-          {mode !== 'weaponmaster' && metaPolicy === 'soft' && "※ソフトメタ想定ロジック：非メタ構成の評価を0.1倍に残し中"}
-          {mode !== 'weaponmaster' && metaPolicy === 'uniform' && "※等確率モード：すべての構成を平等に評価中（メタ無視）"}
+          {mode !== 'weaponmaster' && mode !== 'weaponmaster_destroyer' && metaPolicy === 'exclusion' && "※完全メタ（五手目奥義/無形）想定ロジック：非メタ構成を除外中"}
+          {mode !== 'weaponmaster' && mode !== 'weaponmaster_destroyer' && metaPolicy === 'soft' && "※ソフトメタ想定ロジック：非メタ構成の評価を0.1倍に残し中"}
+          {mode !== 'weaponmaster' && mode !== 'weaponmaster_destroyer' && metaPolicy === 'uniform' && "※等確率モード：すべての構成を平等に評価中（メタ無視）"}
           {mode === 'weaponmaster' && "※ウェポンマスターモード（メタ要素なし）"}
+          {mode === 'weaponmaster_destroyer' && "※ポンマス破壊構成モード（登録済みウェポンマスター構成に対するメタ構成）"}
         </p>
         {emptyConfigWeapons.length > 0 && (
           <div style={{background: '#ff5555', color: '#fff', padding: '10px', borderRadius: '4px', marginTop: '10px', fontWeight: 'bold', fontSize: '0.9rem'}}>
             ⚠ 空欄のスキルがあります：{emptyConfigWeapons.join(', ')}
+          </div>
+        )}
+        {hasLegacyConfig && (
+          <div style={{background: '#f59e0b', color: '#fff', padding: '10px', borderRadius: '4px', marginTop: '10px', fontWeight: 'bold', fontSize: '0.9rem'}}>
+            ℹ 旧設定が読み込まれています
+          </div>
+        )}
+        {unconfiguredWeapons.length > 0 && (mode === 'weaponmaster' || mode === 'weaponmaster_destroyer') && (
+          <div style={{
+            background: 'rgba(245, 158, 11, 0.15)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            color: '#fef08a',
+            padding: '0.75rem 1rem',
+            borderRadius: '0.5rem',
+            marginTop: '10px',
+            fontSize: '0.85rem',
+            lineHeight: '1.4'
+          }}>
+            <span style={{fontWeight: 'bold', color: '#f59e0b', display: 'block', marginBottom: '0.25rem'}}>
+              ⚠ 技構成（ウェポンマスター構成）が未登録の武器があります：
+            </span>
+            <span style={{opacity: 0.9}}>{unconfiguredWeapons.map(w => w.name).join(', ')}</span>
           </div>
         )}
       </header>
@@ -386,9 +519,15 @@ function App() {
             >
               ウェポンマスターモード
             </button>
+            <button 
+              className={`tab-btn ${mode === 'weaponmaster_destroyer' ? 'active' : ''}`}
+              onClick={() => { setMode('weaponmaster_destroyer'); setResults(null); }}
+            >
+              ポンマス破壊構成モード
+            </button>
           </div>
           
-          {mode !== 'weaponmaster' && (
+          {mode !== 'weaponmaster' && mode !== 'weaponmaster_destroyer' && (
             <div className="form-group" style={{marginTop: '15px'}}>
               <label>メタ環境設定（相手の思考パターン）</label>
               <div style={{display: 'flex', gap: '15px', marginTop: '5px'}}>
@@ -457,7 +596,8 @@ function App() {
                 value={wmSelectedWeaponId} 
                 onChange={e => {
                   setWmSelectedWeaponId(e.target.value);
-                  setWmSelectedSkills([0, 0, 0, 0, 0]);
+                  const firstValidSkillIdx = allWeapons.find(w => w.id === parseInt(e.target.value, 10))?.skills.findIndex(s => !s.isOld) || 0;
+                  setWmSelectedSkills(Array(5).fill(firstValidSkillIdx === -1 ? 0 : firstValidSkillIdx));
                 }}
               >
                 {filteredWmWeapons.map(w => (
@@ -479,16 +619,17 @@ function App() {
                       }}
                       style={{flex: '1', minWidth: '120px'}}
                     >
-                      {allWeapons.find(w => w.id === parseInt(wmSelectedWeaponId, 10))?.skills.map((s, i) => (
-                        <option key={i} value={i}>{s.name} ({s.uses}回)</option>
-                      ))}
+                      {allWeapons.find(w => w.id === parseInt(wmSelectedWeaponId, 10))?.skills.map((s, i) => {
+                        if (s.isOld) return null;
+                        return <option key={i} value={i}>{s.name} ({s.uses}回)</option>
+                      })}
                     </select>
                   ))}
                 </div>
                 <button 
                   className="secondary" 
                   onClick={handleAddMasterConfig}
-                  disabled={weaponMasterConfigs.filter(c => c.weaponId === parseInt(wmSelectedWeaponId, 10)).length >= 10}
+                  disabled={!isAdmin || weaponMasterConfigs.filter(c => c.weaponId === parseInt(wmSelectedWeaponId, 10)).length >= 10}
                   style={{marginTop: '5px'}}
                 >
                   敵の構成を記録 ({weaponMasterConfigs.filter(c => c.weaponId === parseInt(wmSelectedWeaponId, 10)).length}/10)
@@ -524,7 +665,9 @@ function App() {
                             <div key={cfg.id} className="ranking-card" style={{padding: '8px', marginBottom: '5px'}}>
                               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                                 <div style={{fontWeight: 'bold', fontSize: '0.9rem'}}>構成 {idx + 1}</div>
-                                <button className="danger" onClick={() => handleRemoveMasterConfig(cfg.id)} style={{padding: '4px 8px', fontSize: '0.8rem', background: '#ff5555', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>削除</button>
+                                {isAdmin && (
+                                  <button className="danger" onClick={() => handleRemoveMasterConfig(cfg.id)} style={{padding: '4px 8px', fontSize: '0.8rem', background: '#ff5555', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer'}}>削除</button>
+                                )}
                               </div>
                               <div className="skill-sequence" style={{marginTop: '8px'}}>
                                 {cfg.sequence.map((skillIdx, turn) => {
@@ -540,7 +683,10 @@ function App() {
                                   return (
                                     <div key={turn} className="skill-tag" style={{padding: '3px 6px', fontSize: '0.8rem'}}>
                                       <span className={`skill-type type-${skill.type}`}>{TYPE_LABELS[skill.type]}</span>
-                                      <span className="skill-name">{skill.name}</span>
+                                      <span className="skill-name">
+                                        {skill.isOld && <span className="legacy-tag">【旧】</span>}
+                                        {skill.name}
+                                      </span>
                                     </div>
                                   );
                                 })}
@@ -587,25 +733,33 @@ function App() {
             <div className="form-group" style={{marginTop: '20px'}}>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
                 <label style={{margin: 0}}>カスタム武器（エクストラエネミー）設定</label>
-                <button 
-                  className="secondary" 
-                  style={{padding: '5px 10px', fontSize: '0.9rem'}}
-                  onClick={() => {
-                    if (isExtraWeaponFormOpen) {
-                      resetExtraWeaponForm();
-                    }
-                    setIsExtraWeaponFormOpen(!isExtraWeaponFormOpen);
-                  }}
-                >
-                  {isExtraWeaponFormOpen ? '閉じる' : '新規作成'}
-                </button>
+                {isAdmin && (
+                  <button 
+                    className="secondary" 
+                    style={{padding: '5px 10px', fontSize: '0.9rem'}}
+                    onClick={() => {
+                      if (isExtraWeaponFormOpen) {
+                        resetExtraWeaponForm();
+                      }
+                      setIsExtraWeaponFormOpen(!isExtraWeaponFormOpen);
+                    }}
+                  >
+                    {isExtraWeaponFormOpen ? '閉じる' : '新規作成'}
+                  </button>
+                )}
               </div>
               
-              {isExtraWeaponFormOpen && (
+              {isExtraWeaponFormOpen && isAdmin && (
                 <div style={{marginTop: '10px', padding: '15px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px'}}>
                   <div style={{marginBottom: '10px', fontWeight: 'bold'}}>
                     {editingExtraWeaponId ? 'カスタム武器の編集' : 'カスタム武器の新規作成'}
                   </div>
+                  
+                  <label style={{display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '10px', color: '#ffb86c', fontSize: '0.9rem'}}>
+                    <input type="checkbox" checked={isMaintenanceMode} onChange={e => setIsMaintenanceMode(e.target.checked)} />
+                    メンテナンスモード (構成破壊をスキップ・旧タグの付け外し)
+                  </label>
+                  
                   <div style={{marginBottom: '10px'}}>
                     <input 
                       type="text" 
@@ -639,6 +793,15 @@ function App() {
                         {newExtraWeaponSkills.length > 1 && (
                           <button className="danger" style={{padding: '5px', fontSize: '0.7rem', flex: '0 0 auto'}} onClick={() => handleRemoveExtraSkill(idx)}>✕</button>
                         )}
+                        {isMaintenanceMode && (
+                          <button className="secondary" style={{padding: '5px', fontSize: '0.7rem', flex: '0 0 auto', marginLeft: '5px'}} onClick={() => {
+                            const s = [...newExtraWeaponSkills];
+                            s[idx].isOld = !s[idx].isOld;
+                            setNewExtraWeaponSkills(s);
+                          }}>
+                            {skill.isOld ? '旧タグ外す' : '旧タグ付与'}
+                          </button>
+                        )}
                       </div>
                     ))}
                     <button className="secondary" style={{padding: '5px', fontSize: '0.8rem', marginTop: '5px'}} onClick={handleAddExtraSkill}>+ スキルを追加</button>
@@ -656,8 +819,12 @@ function App() {
                     {extraWeapons.map(ew => (
                       <div key={ew.id} style={{background: 'rgba(255,184,108,0.2)', padding: '5px 10px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '10px'}}>
                         <span>{ew.name}</span>
-                        <button className="secondary" style={{padding: '2px 5px', fontSize: '0.7rem'}} onClick={() => handleEditExtraWeapon(ew)}>編集</button>
-                        <button className="danger" style={{padding: '2px 5px', fontSize: '0.7rem'}} onClick={() => handleRemoveExtraWeapon(ew.id)}>削除</button>
+                        {isAdmin && (
+                          <>
+                            <button className="secondary" style={{padding: '2px 5px', fontSize: '0.7rem'}} onClick={() => handleEditExtraWeapon(ew)}>編集</button>
+                            <button className="danger" style={{padding: '2px 5px', fontSize: '0.7rem'}} onClick={() => handleRemoveExtraWeapon(ew.id)}>削除</button>
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -674,6 +841,7 @@ function App() {
           >
             {isSimulating ? 'シミュレーション実行中...' : 
              mode === 'weaponmaster' ? `${selectedWeapon?.name || ''} 対 ${allWeapons.find(w => w.id === parseInt(wmSelectedWeaponId, 10))?.name} の勝率を計算` : 
+             mode === 'weaponmaster_destroyer' ? `${selectedWeapon?.name || ''} のポンマス破壊構成を計算` : 
              '勝率が高い構成を計算'}
           </button>
         </div>
@@ -681,10 +849,18 @@ function App() {
         {isSimulating && (
           <div className="loading">
             <p>全マッチアップを計算中... 少々お待ちください</p>
+            {mode === 'weaponmaster_destroyer' && (
+              <div style={{ width: '100%', maxWidth: '300px', margin: '15px auto 5px auto', background: 'rgba(255,255,255,0.1)', borderRadius: '999px', height: '8px', overflow: 'hidden' }}>
+                <div style={{ width: `${simulationProgress}%`, height: '100%', background: 'linear-gradient(to right, #a855f7, #3b82f6)', transition: 'width 0.2s ease-out' }}></div>
+              </div>
+            )}
+            {mode === 'weaponmaster_destroyer' && (
+              <div style={{ fontSize: '0.85rem', color: '#94a3b8' }}>進捗: {simulationProgress}%</div>
+            )}
           </div>
         )}
         
-        {results && mode !== 'weaponmaster' && selectedWeapon && (
+        {results && mode !== 'weaponmaster' && mode !== 'weaponmaster_destroyer' && simulatedWeapon && (
           <div className="results-container glass-panel">
             <h2>上位5つの推奨構成</h2>
             <div className="ranking-list">
@@ -702,7 +878,7 @@ function App() {
                     </div>
                     <div className="skill-sequence">
                       {result.sequence.map((skillIdx, turn) => {
-                        const skill = selectedWeapon.skills[skillIdx];
+                        const skill = simulatedWeapon.skills[skillIdx];
                         return (
                           <div key={turn} className="skill-tag">
                             <span className={`skill-type type-${skill.type}`}>
@@ -720,7 +896,42 @@ function App() {
           </div>
         )}
 
-        {results && mode === 'weaponmaster' && selectedWeapon && (
+        {results && mode === 'weaponmaster_destroyer' && simulatedWeapon && (
+          <div className="results-container glass-panel">
+            <h2>汎用最適構成（ポンマス破壊構成）トップ10</h2>
+            <div className="ranking-list">
+              {results.map((result, i) => (
+                <div key={i} className={`ranking-card rank-${i + 1}`}>
+                  <div className="rank-badge">{i + 1}</div>
+                  <div className="card-content">
+                    <div className="stats-row">
+                      <div className="win-rate" style={{color: '#a855f7'}}>有効敵数: {result.frequency} 武器</div>
+                      <div className="match-counts" style={{fontSize: '0.8rem', opacity: 0.8}}>
+                        (総合勝率: {(result.overallWinRate * 100).toFixed(2)}%)
+                      </div>
+                    </div>
+                    <div className="skill-sequence">
+                      {result.sequence.map((skillIdx, turn) => {
+                        const skill = simulatedWeapon.skills[skillIdx];
+                        if (!skill) return null;
+                        return (
+                          <div key={turn} className="skill-tag">
+                            <span className={`skill-type type-${skill.type}`}>
+                              {TYPE_LABELS[skill.type]}
+                            </span>
+                            <span className="skill-name">{skill.name}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {results && mode === 'weaponmaster' && simulatedWeapon && (
           <div className="results-container glass-panel">
             <h2>対 {allWeapons.find(w => w.id === wmLastSimulatedWeaponId)?.name} 勝率トップ3構成</h2>
             <div className="ranking-list">
@@ -739,7 +950,7 @@ function App() {
                       </div>
                       <div className="skill-sequence">
                         {result.sequence.map((skillIdx, turn) => {
-                          const skill = selectedWeapon.skills[skillIdx];
+                          const skill = simulatedWeapon.skills[skillIdx];
                           if (!skill) return null;
                           return (
                             <div key={turn} className="skill-tag">
@@ -759,6 +970,73 @@ function App() {
           </div>
         )}
       </main>
+
+      <footer style={{ textAlign: 'center', padding: '2rem 1rem', borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <button
+            onClick={handleExport}
+            style={{
+              padding: '0.6rem 1.4rem',
+              borderRadius: '0.5rem',
+              border: '1px solid rgba(110,231,183,0.35)',
+              background: 'rgba(110,231,183,0.08)',
+              color: '#6ee7b7',
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+              transition: 'background 0.2s'
+            }}
+            title="ウェポンマスター構成・カスタム武器をJSONファイルに保存します"
+          >
+            ⬇ データをエクスポート
+          </button>
+          {isAdmin && (
+            <button
+              onClick={() => importFileRef.current?.click()}
+              style={{
+                padding: '0.6rem 1.4rem',
+                borderRadius: '0.5rem',
+                border: '1px solid rgba(147,197,253,0.35)',
+                background: 'rgba(147,197,253,0.08)',
+                color: '#93c5fd',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                transition: 'background 0.2s'
+              }}
+              title="エクスポートしたJSONファイルを読み込んでデータを復元します"
+            >
+              ⬆ データをインポート
+            </button>
+          )}
+        </div>
+        <p style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)' }}>
+          データはブラウザのlocalStorageに保存されています。定期的にエクスポートをお勧めします。
+        </p>
+      </footer>
+
+      {showLogin && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Admin Login</h3>
+            <input type="text" placeholder="ID" value={loginId} onChange={e => setLoginId(e.target.value)} />
+            <input type="password" placeholder="Password" value={loginPass} onChange={e => setLoginPass(e.target.value)} />
+            <div style={{display: 'flex', gap: '10px', marginTop: '15px'}}>
+              <button className="primary" onClick={async () => {
+                if (loginId === 'admin') {
+                  const hash = await hashPassword(loginPass);
+                  if (hash === '4c13ea4a6134679f36b329875aed908307979af534e09ff9cec3d9d7d26dfb79') {
+                    sessionStorage.setItem('isAdmin', 'true');
+                    setIsAdmin(true);
+                    setShowLogin(false);
+                    return;
+                  }
+                }
+                alert('IDまたはパスワードが違います');
+              }}>ログイン</button>
+              <button className="secondary" style={{padding: '0.75rem 2rem', border: '1px solid #44475a', background: 'transparent', color: '#fff', borderRadius: '0.5rem'}} onClick={() => setShowLogin(false)}>キャンセル</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

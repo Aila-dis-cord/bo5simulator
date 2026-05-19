@@ -392,6 +392,132 @@ self.onmessage = function(e) {
       topConfigs: top3
     });
   }
+  else if (data.type === 'SIMULATE_DESTROYER') {
+    const { myWeaponId, targetConfigs } = data;
+    
+    let myResolvedList = allResolved[myWeaponId];
+    let mySeqs = allConfigsBase[myWeaponId];
+    
+    if (!myResolvedList && weaponDict[myWeaponId]) {
+      mySeqs = generateValidConfigs(weaponDict[myWeaponId]);
+      myResolvedList = new Array(mySeqs.length);
+      for(let i=0; i<mySeqs.length; i++) {
+        myResolvedList[i] = resolveConfig(weaponDict[myWeaponId], mySeqs[i]);
+      }
+    }
+    
+    if (!myResolvedList) return;
+
+    // 敵武器ごとに構成をグループ化
+    const enemyGroups = {};
+    for (const cfg of targetConfigs) {
+      if (!enemyGroups[cfg.weaponId]) enemyGroups[cfg.weaponId] = [];
+      const weapon = weaponDict[cfg.weaponId];
+      if (weapon) {
+        enemyGroups[cfg.weaponId].push(resolveConfig(weapon, cfg.sequence));
+      }
+    }
+    
+    const enemyIds = Object.keys(enemyGroups);
+    if (enemyIds.length === 0) return;
+    
+    const frequencyCounts = new Array(myResolvedList.length).fill(0);
+    const totalWinRates = new Array(myResolvedList.length).fill(0);
+    
+    let progressCount = 0;
+    for (const eId of enemyIds) {
+      const opponents = enemyGroups[eId];
+      const totalMatches = opponents.length;
+      
+      const enemyResults = [];
+      
+      for (let c = 0; c < myResolvedList.length; c++) {
+        const myRes = myResolvedList[c];
+        let wins = 0;
+        
+        for (let o = 0; o < totalMatches; o++) {
+          const opRes = opponents[o];
+          let myScore = 0;
+          let opScore = 0;
+          
+          for (let t = 0; t < 5; t++) {
+            const idx = t * 3;
+            const t1 = myRes[idx];
+            const a1 = myRes[idx+1];
+            const d1 = myRes[idx+2];
+            
+            const t2 = opRes[idx];
+            const a2 = opRes[idx+1];
+            const d2 = opRes[idx+2];
+            
+            if (t1 === t2) {
+              myScore += Math.max(0, Math.floor(a1 / 2) - d2);
+              opScore += Math.max(0, Math.floor(a2 / 2) - d1);
+            } else {
+              const p1Wins = 
+                (t1 === 0 && (t2 === 1 || t2 === 4)) ||
+                (t1 === 1 && (t2 === 2 || t2 === 4)) ||
+                (t1 === 2 && (t2 === 0 || t2 === 4)) ||
+                (t1 === 3 && (t2 === 0 || t2 === 1 || t2 === 2)) ||
+                (t1 === 4 && (t2 === 3));
+                
+              if (p1Wins) {
+                myScore += Math.max(0, a1 - d2);
+              } else {
+                opScore += Math.max(0, a2 - d1);
+              }
+            }
+          }
+          
+          if (myScore > opScore) wins++;
+        }
+        
+        const winRate = wins / totalMatches;
+        enemyResults.push({ seqIndex: c, winRate, wins });
+        totalWinRates[c] += winRate;
+      }
+      
+      // この敵に対する勝率トップ3を抽出
+      enemyResults.sort((a, b) => {
+        if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+        return b.wins - a.wins;
+      });
+      
+      for (let i = 0; i < Math.min(3, enemyResults.length); i++) {
+        frequencyCounts[enemyResults[i].seqIndex]++;
+      }
+
+      progressCount++;
+      self.postMessage({
+        type: 'SIMULATE_DESTROYER_PROGRESS',
+        progress: Math.round((progressCount / enemyIds.length) * 100)
+      });
+    }
+    
+    const finalResults = [];
+    for (let c = 0; c < myResolvedList.length; c++) {
+      finalResults.push({
+        seqIndex: c,
+        sequence: Array.from(mySeqs[c]),
+        frequency: frequencyCounts[c],
+        overallWinRate: totalWinRates[c] / enemyIds.length
+      });
+    }
+    
+    // 頻度順、同数なら総合勝率順でソート
+    finalResults.sort((a, b) => {
+      if (b.frequency !== a.frequency) return b.frequency - a.frequency;
+      return b.overallWinRate - a.overallWinRate;
+    });
+    
+    const top10 = finalResults.slice(0, 10);
+    
+    self.postMessage({
+      type: 'SIMULATE_DESTROYER_RESULT',
+      myWeaponId,
+      topConfigs: top10
+    });
+  }
   else if (data.type === 'UPDATE_EXTRA_WEAPONS') {
     const extraWeapons = data.extraWeapons;
     for (let w = 0; w < extraWeapons.length; w++) {
