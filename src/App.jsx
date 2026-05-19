@@ -14,9 +14,11 @@ function App() {
   const [workerReady, setWorkerReady] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
   const [simulationProgress, setSimulationProgress] = useState(0);
-  const [mode, setMode] = useState('global'); // 'global' or 'target'
+  const [mode, setMode] = useState('weaponmaster'); // 'global' or 'target'
   const [metaPolicy, setMetaPolicy] = useState('exclusion'); // 'exclusion', 'soft', 'uniform'
   const [wmSortPolicy, setWmSortPolicy] = useState('winrate'); // 'winrate', 'draws'
+  const [isPrecalculated, setIsPrecalculated] = useState(false);
+  const [isPrecalculating, setIsPrecalculating] = useState(false);
   
   const [myWeaponId, setMyWeaponId] = useState('');
   const [targetWeaponIds, setTargetWeaponIds] = useState([]);
@@ -135,8 +137,11 @@ function App() {
       // Initialize Worker
       workerRef.current = new Worker(new URL('./simulationWorker.js', import.meta.url), { type: 'module' });
       workerRef.current.onmessage = (e) => {
-        if (e.data.type === 'INIT_DONE') {
+        if (e.data.type === 'INIT_FAST_DONE') {
           setWorkerReady(true);
+        } else if (e.data.type === 'PRECALCULATE_ALL_DONE') {
+          setIsPrecalculated(true);
+          setIsPrecalculating(false);
         } else if (e.data.type === 'SIMULATE_RESULT' || e.data.type === 'SIMULATE_MASTERS_RESULT' || e.data.type === 'SIMULATE_DESTROYER_RESULT') {
           setResults(e.data.topConfigs);
           setIsSimulating(false);
@@ -148,7 +153,7 @@ function App() {
         }
       };
       
-      workerRef.current.postMessage({ type: 'INIT', weapons: loadedWeapons });
+      workerRef.current.postMessage({ type: 'INIT_FAST', weapons: loadedWeapons });
     }).catch(err => {
       console.error("Failed to load weapons", err);
     });
@@ -420,7 +425,7 @@ function App() {
     return (
       <div className="loading">
         <h1>Bo5 Simulator</h1>
-        <p>シミュレーションエンジンを初期化中...（全構成を事前計算しています）</p>
+        <p>シミュレーションエンジンを起動中...</p>
       </div>
     );
   }
@@ -456,7 +461,14 @@ function App() {
           style={{ display: 'none' }}
         />
         {isAdmin ? (
-          <button className="admin-login-btn" onClick={() => { setIsAdmin(false); sessionStorage.removeItem('isAdmin'); }}>Admin Logout</button>
+          <button className="admin-login-btn" onClick={() => { 
+            setIsAdmin(false); 
+            sessionStorage.removeItem('isAdmin'); 
+            if (mode === 'global' || mode === 'target') {
+              setMode('weaponmaster');
+              setResults(null);
+            }
+          }}>Admin Logout</button>
         ) : (
           <button className="admin-login-btn" onClick={() => setShowLogin(true)}>Admin Login</button>
         )}
@@ -501,18 +513,22 @@ function App() {
       <main>
         <div className="glass-panel">
           <div className="tabs">
-            <button 
-              className={`tab-btn ${mode === 'global' ? 'active' : ''}`}
-              onClick={() => { setMode('global'); setResults(null); }}
-            >
-              総合評価モード
-            </button>
-            <button 
-              className={`tab-btn ${mode === 'target' ? 'active' : ''}`}
-              onClick={() => { setMode('target'); setResults(null); }}
-            >
-              ターゲット対策モード
-            </button>
+            {isAdmin && (
+              <>
+                <button 
+                  className={`tab-btn ${mode === 'global' ? 'active' : ''}`}
+                  onClick={() => { setMode('global'); setResults(null); }}
+                >
+                  総合評価モード
+                </button>
+                <button 
+                  className={`tab-btn ${mode === 'target' ? 'active' : ''}`}
+                  onClick={() => { setMode('target'); setResults(null); }}
+                >
+                  ターゲット対策モード
+                </button>
+              </>
+            )}
             <button 
               className={`tab-btn ${mode === 'weaponmaster' ? 'active' : ''}`}
               onClick={() => { setMode('weaponmaster'); setResults(null); }}
@@ -527,7 +543,27 @@ function App() {
             </button>
           </div>
           
-          {mode !== 'weaponmaster' && mode !== 'weaponmaster_destroyer' && (
+          {(mode === 'global' || mode === 'target') && !isPrecalculated ? (
+            <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+              <h3 style={{ marginTop: 0, marginBottom: '0.75rem', color: '#ffb86c' }}>事前計算が必要です</h3>
+              <p style={{ fontSize: '0.9rem', color: '#f8f8f2', opacity: 0.8, lineHeight: '1.6', marginBottom: '1.5rem' }}>
+                総合評価モードとターゲット対策モードを実行するには、すべての武器の組み合わせと構成情報を事前に計算する必要があります。<br />
+                （約80以上の武器データを処理するため、初回の計算に数秒〜十数秒かかります）
+              </p>
+              <button 
+                className="primary" 
+                onClick={() => {
+                  setIsPrecalculating(true);
+                  workerRef.current.postMessage({ type: 'PRECALCULATE_ALL' });
+                }}
+                disabled={isPrecalculating}
+              >
+                {isPrecalculating ? '事前計算を実行中...' : '事前計算を開始する'}
+              </button>
+            </div>
+          ) : (
+            <>
+              {mode !== 'weaponmaster' && mode !== 'weaponmaster_destroyer' && (
             <div className="form-group" style={{marginTop: '15px'}}>
               <label>メタ環境設定（相手の思考パターン）</label>
               <div style={{display: 'flex', gap: '15px', marginTop: '5px'}}>
@@ -844,6 +880,8 @@ function App() {
              mode === 'weaponmaster_destroyer' ? `${selectedWeapon?.name || ''} のポンマス破壊構成を計算` : 
              '勝率が高い構成を計算'}
           </button>
+            </>
+          )}
         </div>
         
         {isSimulating && (

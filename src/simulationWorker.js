@@ -119,6 +119,35 @@ self.onmessage = function(e) {
     
     self.postMessage({ type: 'INIT_DONE' });
   }
+  else if (data.type === 'INIT_FAST') {
+    const weapons = data.weapons;
+    allResolved = {};
+    allConfigsBase = {};
+    weaponDict = {};
+    
+    for (let w = 0; w < weapons.length; w++) {
+      const weapon = weapons[w];
+      weaponDict[weapon.id] = weapon;
+    }
+    
+    self.postMessage({ type: 'INIT_FAST_DONE' });
+  }
+  else if (data.type === 'PRECALCULATE_ALL') {
+    for (const key in weaponDict) {
+      const weapon = weaponDict[key];
+      if (!allResolved[weapon.id]) {
+        const validSeqs = generateValidConfigs(weapon);
+        allConfigsBase[weapon.id] = validSeqs;
+        
+        const resolvedList = new Array(validSeqs.length);
+        for (let i = 0; i < validSeqs.length; i++) {
+          resolvedList[i] = resolveConfig(weapon, validSeqs[i]);
+        }
+        allResolved[weapon.id] = resolvedList;
+      }
+    }
+    self.postMessage({ type: 'PRECALCULATE_ALL_DONE' });
+  }
   else if (data.type === 'SIMULATE') {
     const { myWeaponId, targetWeaponIds, metaPolicy = 'exclusion' } = data;
     
