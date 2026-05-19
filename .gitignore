@@ -1,7 +1,8 @@
 # 依存関係
 node_modules/
 
-# ビルド成果物（GitHub Pagesデプロイのためdist/はコミット対象）
+# ビルド成果物（Vercelが自動ビルドするためコミット不要）
+dist/
 dist-ssr/
 
 # ログファイル
