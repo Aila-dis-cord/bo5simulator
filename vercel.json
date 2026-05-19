@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/simulator/:path*", "destination": "/:path*" }
+  ]
+}

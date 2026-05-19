@@ -15,7 +15,8 @@ const TYPE_MAP = {
 };
 
 export async function loadWeapons() {
-  const response = await fetch('/data.txt?v=' + Date.now());
+  const baseUrl = import.meta.env.BASE_URL || '/';
+  const response = await fetch(`${baseUrl}data.txt?v=${Date.now()}`);
   if (!response.ok) {
     throw new Error('Failed to load data.txt');
   }
