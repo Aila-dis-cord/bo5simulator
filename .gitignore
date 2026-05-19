@@ -1,5 +1,12 @@
-# Logs
-logs
+# 依存関係
+node_modules/
+
+# ビルド成果物
+dist/
+dist-ssr/
+
+# ログファイル
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -7,19 +14,29 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# ローカル環境変数（機密情報を含む可能性あり）
 *.local
+.env
+.env.*
+!.env.example
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
+# エディタ・OS固有ファイル
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
-*.md
+
+# VS Code（プロジェクト共有設定のみコミット対象）
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# JetBrains IDE
+.idea/
+
+# キャッシュ
+.cache/
+.parcel-cache/
