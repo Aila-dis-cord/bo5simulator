@@ -1,8 +1,7 @@
 # 依存関係
 node_modules/
 
-# ビルド成果物
-dist/
+# ビルド成果物（GitHub Pagesデプロイのためdist/はコミット対象）
 dist-ssr/
 
 # ログファイル

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/bo5simulator/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>bo5app</title>
+    <script type="module" crossorigin src="/bo5simulator/assets/index-B1pEZaR4.js"></script>
+    <link rel="stylesheet" crossorigin href="/bo5simulator/assets/index-TpeAqZAo.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // 過去のプロジェクト等で登録された不要なServiceWorkerがリクエストを妨害し、
+      // 画面が真っ白になる現象（スーパーリロードでのみ直る）を防ぐため、全SWを解除します。
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            registration.unregister();
+          }
+        });
+      }
+    </script>
+  </body>
+</html>
