@@ -1027,24 +1027,22 @@ function App() {
           >
             ⬇ データをエクスポート
           </button>
-          {isAdmin && (
-            <button
-              onClick={() => importFileRef.current?.click()}
-              style={{
-                padding: '0.6rem 1.4rem',
-                borderRadius: '0.5rem',
-                border: '1px solid rgba(147,197,253,0.35)',
-                background: 'rgba(147,197,253,0.08)',
-                color: '#93c5fd',
-                cursor: 'pointer',
-                fontSize: '0.9rem',
-                transition: 'background 0.2s'
-              }}
-              title="エクスポートしたJSONファイルを読み込んでデータを復元します"
-            >
-              ⬆ データをインポート
-            </button>
-          )}
+          <button
+            onClick={() => importFileRef.current?.click()}
+            style={{
+              padding: '0.6rem 1.4rem',
+              borderRadius: '0.5rem',
+              border: '1px solid rgba(147,197,253,0.35)',
+              background: 'rgba(147,197,253,0.08)',
+              color: '#93c5fd',
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+              transition: 'background 0.2s'
+            }}
+            title="エクスポートしたJSONファイルを読み込んでデータを復元します"
+          >
+            ⬆ データをインポート
+          </button>
         </div>
         <p style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: 'rgba(255,255,255,0.3)' }}>
           データはブラウザのlocalStorageに保存されています。定期的にエクスポートをお勧めします。
