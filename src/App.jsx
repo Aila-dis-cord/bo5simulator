@@ -936,7 +936,7 @@ function App() {
 
         {results && mode === 'weaponmaster_destroyer' && simulatedWeapon && (
           <div className="results-container glass-panel">
-            <h2>汎用最適構成（ポンマス破壊構成）トップ10</h2>
+            <h2>ポンマス破壊構成（有効な全 {results.length} 通り）</h2>
             <div className="ranking-list">
               {results.map((result, i) => (
                 <div key={i} className={`ranking-card rank-${i + 1}`}>
@@ -962,6 +962,23 @@ function App() {
                         );
                       })}
                     </div>
+                    {result.defeatedWeaponIds && result.defeatedWeaponIds.length > 0 && (
+                      <div style={{ marginTop: '12px', fontSize: '0.85rem', color: '#e2e8f0', background: 'rgba(255,255,255,0.04)', padding: '10px 12px', borderRadius: '6px' }}>
+                        <div style={{ fontWeight: 'bold', color: '#ff79c6', marginBottom: '6px' }}>
+                          ⚔️ 倒せる武器 ({result.frequency}):
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          {result.defeatedWeaponIds.map(id => {
+                            const w = allWeapons.find(weapon => weapon.id === id);
+                            return w ? (
+                              <span key={id} style={{ background: 'rgba(255,121,198,0.15)', color: '#ff79c6', padding: '3px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '500' }}>
+                                {w.name}
+                              </span>
+                            ) : null;
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

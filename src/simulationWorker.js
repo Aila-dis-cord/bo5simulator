@@ -450,7 +450,7 @@ self.onmessage = function(e) {
     const enemyIds = Object.keys(enemyGroups);
     if (enemyIds.length === 0) return;
     
-    const frequencyCounts = new Array(myResolvedList.length).fill(0);
+    const defeatedEnemies = Array.from({ length: myResolvedList.length }, () => []);
     const totalWinRates = new Array(myResolvedList.length).fill(0);
     
     let progressCount = 0;
@@ -458,11 +458,10 @@ self.onmessage = function(e) {
       const opponents = enemyGroups[eId];
       const totalMatches = opponents.length;
       
-      const enemyResults = [];
-      
       for (let c = 0; c < myResolvedList.length; c++) {
         const myRes = myResolvedList[c];
         let wins = 0;
+        let losses = 0;
         
         for (let o = 0; o < totalMatches; o++) {
           const opRes = opponents[o];
@@ -499,21 +498,16 @@ self.onmessage = function(e) {
           }
           
           if (myScore > opScore) wins++;
+          else if (myScore < opScore) losses++;
         }
         
         const winRate = wins / totalMatches;
-        enemyResults.push({ seqIndex: c, winRate, wins });
         totalWinRates[c] += winRate;
-      }
-      
-      // この敵に対する勝率トップ3を抽出
-      enemyResults.sort((a, b) => {
-        if (b.winRate !== a.winRate) return b.winRate - a.winRate;
-        return b.wins - a.wins;
-      });
-      
-      for (let i = 0; i < Math.min(3, enemyResults.length); i++) {
-        frequencyCounts[enemyResults[i].seqIndex]++;
+        
+        // 勝ち越し (wins > losses) を「倒せる」と判定
+        if (wins > losses) {
+          defeatedEnemies[c].push(parseInt(eId, 10));
+        }
       }
 
       progressCount++;
@@ -528,7 +522,8 @@ self.onmessage = function(e) {
       finalResults.push({
         seqIndex: c,
         sequence: Array.from(mySeqs[c]),
-        frequency: frequencyCounts[c],
+        defeatedWeaponIds: defeatedEnemies[c],
+        frequency: defeatedEnemies[c].length,
         overallWinRate: totalWinRates[c] / enemyIds.length
       });
     }
@@ -539,12 +534,13 @@ self.onmessage = function(e) {
       return b.overallWinRate - a.overallWinRate;
     });
     
-    const top10 = finalResults.slice(0, 10);
+    // 少なくとも1つの敵武器を倒せる構成のみを出力
+    const validConfigs = finalResults.filter(r => r.frequency > 0);
     
     self.postMessage({
       type: 'SIMULATE_DESTROYER_RESULT',
       myWeaponId,
-      topConfigs: top10
+      topConfigs: validConfigs
     });
   }
   else if (data.type === 'UPDATE_EXTRA_WEAPONS') {
