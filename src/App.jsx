@@ -943,7 +943,19 @@ function App() {
                   <div className="rank-badge">{i + 1}</div>
                   <div className="card-content">
                     <div className="stats-row">
-                      <div className="win-rate" style={{color: '#a855f7'}}>有効敵数: {result.frequency} 武器</div>
+                      <div className="win-rate" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ color: '#a855f7' }}>有効敵数: {result.frequency} 武器</span>
+                        <span style={{
+                          fontSize: '0.75rem',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          fontWeight: 'bold',
+                          background: result.isPerfect ? 'rgba(74,222,128,0.15)' : 'rgba(251,146,60,0.15)',
+                          color: result.isPerfect ? '#4ade80' : '#fb923c'
+                        }}>
+                          {result.isPerfect ? '勝率100%' : '勝率100%未満'}
+                        </span>
+                      </div>
                       <div className="match-counts" style={{fontSize: '0.8rem', opacity: 0.8}}>
                         (総合勝率: {(result.overallWinRate * 100).toFixed(2)}%)
                       </div>
@@ -964,14 +976,21 @@ function App() {
                     </div>
                     {result.defeatedWeaponIds && result.defeatedWeaponIds.length > 0 && (
                       <div style={{ marginTop: '12px', fontSize: '0.85rem', color: '#e2e8f0', background: 'rgba(255,255,255,0.04)', padding: '10px 12px', borderRadius: '6px' }}>
-                        <div style={{ fontWeight: 'bold', color: '#ff79c6', marginBottom: '6px' }}>
-                          ⚔️ 倒せる武器 ({result.frequency}):
+                        <div style={{ fontWeight: 'bold', color: result.isPerfect ? '#4ade80' : '#fb923c', marginBottom: '6px' }}>
+                          ⚔️ {result.isPerfect ? '100%勝てる武器' : '勝ち越せる武器'} ({result.frequency}):
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                           {result.defeatedWeaponIds.map(id => {
                             const w = allWeapons.find(weapon => weapon.id === id);
                             return w ? (
-                              <span key={id} style={{ background: 'rgba(255,121,198,0.15)', color: '#ff79c6', padding: '3px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '500' }}>
+                              <span key={id} style={{
+                                background: result.isPerfect ? 'rgba(74,222,128,0.15)' : 'rgba(251,146,60,0.15)',
+                                color: result.isPerfect ? '#4ade80' : '#fb923c',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                fontSize: '0.75rem',
+                                fontWeight: '500'
+                              }}>
                                 {w.name}
                               </span>
                             ) : null;

@@ -450,11 +450,11 @@ self.onmessage = function(e) {
     const enemyIds = Object.keys(enemyGroups);
     if (enemyIds.length === 0) return;
     
-    const defeatedEnemies = Array.from({ length: myResolvedList.length }, () => []);
-    const totalWinRates = new Array(myResolvedList.length).fill(0);
+    const matchStats = Array.from({ length: myResolvedList.length }, () => new Array(enemyIds.length));
     
     let progressCount = 0;
-    for (const eId of enemyIds) {
+    for (let eIdx = 0; eIdx < enemyIds.length; eIdx++) {
+      const eId = enemyIds[eIdx];
       const opponents = enemyGroups[eId];
       const totalMatches = opponents.length;
       
@@ -502,12 +502,11 @@ self.onmessage = function(e) {
         }
         
         const winRate = wins / totalMatches;
-        totalWinRates[c] += winRate;
-        
-        // 勝ち越し (wins > losses) を「倒せる」と判定
-        if (wins > losses) {
-          defeatedEnemies[c].push(parseInt(eId, 10));
-        }
+        matchStats[c][eIdx] = {
+          winRate,
+          wins,
+          losses
+        };
       }
 
       progressCount++;
@@ -518,29 +517,112 @@ self.onmessage = function(e) {
     }
     
     const finalResults = [];
-    for (let c = 0; c < myResolvedList.length; c++) {
+    const uncovered = new Set(enemyIds.map((_, idx) => idx));
+    
+    // --- Phase 1: 100% Win Rate coverage ---
+    while (uncovered.size > 0) {
+      let bestConfigIdx = -1;
+      let bestCoveredEnemies = [];
+      let bestOverallWinRateSum = 0;
+      
+      for (let c = 0; c < myResolvedList.length; c++) {
+        const covered = [];
+        let winRateSum = 0;
+        for (const eIdx of uncovered) {
+          const stat = matchStats[c][eIdx];
+          if (stat.winRate === 1.0) {
+            covered.push(eIdx);
+            winRateSum += stat.winRate;
+          }
+        }
+        
+        if (covered.length > 0) {
+          if (covered.length > bestCoveredEnemies.length || 
+              (covered.length === bestCoveredEnemies.length && winRateSum > bestOverallWinRateSum)) {
+            bestConfigIdx = c;
+            bestCoveredEnemies = covered;
+            bestOverallWinRateSum = winRateSum;
+          }
+        }
+      }
+      
+      if (bestConfigIdx === -1) {
+        break; // No more weapons can be defeated with 100% win rate
+      }
+      
+      let totalWinRate = 0;
+      for (let eIdx = 0; eIdx < enemyIds.length; eIdx++) {
+        totalWinRate += matchStats[bestConfigIdx][eIdx].winRate;
+      }
+      
       finalResults.push({
-        seqIndex: c,
-        sequence: Array.from(mySeqs[c]),
-        defeatedWeaponIds: defeatedEnemies[c],
-        frequency: defeatedEnemies[c].length,
-        overallWinRate: totalWinRates[c] / enemyIds.length
+        seqIndex: bestConfigIdx,
+        sequence: Array.from(mySeqs[bestConfigIdx]),
+        defeatedWeaponIds: bestCoveredEnemies.map(idx => parseInt(enemyIds[idx], 10)),
+        isPerfect: true,
+        frequency: bestCoveredEnemies.length,
+        overallWinRate: totalWinRate / enemyIds.length
       });
+      
+      for (const eIdx of bestCoveredEnemies) {
+        uncovered.delete(eIdx);
+      }
     }
     
-    // 頻度順、同数なら総合勝率順でソート
-    finalResults.sort((a, b) => {
-      if (b.frequency !== a.frequency) return b.frequency - a.frequency;
-      return b.overallWinRate - a.overallWinRate;
-    });
-    
-    // 少なくとも1つの敵武器を倒せる構成のみを出力
-    const validConfigs = finalResults.filter(r => r.frequency > 0);
+    // --- Phase 2: Less than 100% Win Rate coverage ---
+    while (uncovered.size > 0) {
+      let bestConfigIdx = -1;
+      let bestCoveredEnemies = [];
+      let bestOverallWinRateSum = 0;
+      
+      for (let c = 0; c < myResolvedList.length; c++) {
+        const covered = [];
+        let winRateSum = 0;
+        for (const eIdx of uncovered) {
+          const stat = matchStats[c][eIdx];
+          if (stat.wins > stat.losses) {
+            covered.push(eIdx);
+            winRateSum += stat.winRate;
+          }
+        }
+        
+        if (covered.length > 0) {
+          if (covered.length > bestCoveredEnemies.length || 
+              (covered.length === bestCoveredEnemies.length && winRateSum > bestOverallWinRateSum)) {
+            bestConfigIdx = c;
+            bestCoveredEnemies = covered;
+            bestOverallWinRateSum = winRateSum;
+          }
+        }
+      }
+      
+      if (bestConfigIdx === -1) {
+        break; // No more remaining weapons can be defeated at all
+      }
+      
+      let totalWinRate = 0;
+      for (let eIdx = 0; eIdx < enemyIds.length; eIdx++) {
+        totalWinRate += matchStats[bestConfigIdx][eIdx].winRate;
+      }
+      
+      finalResults.push({
+        seqIndex: bestConfigIdx,
+        sequence: Array.from(mySeqs[bestConfigIdx]),
+        defeatedWeaponIds: bestCoveredEnemies.map(idx => parseInt(enemyIds[idx], 10)),
+        isPerfect: false,
+        frequency: bestCoveredEnemies.length,
+        overallWinRate: totalWinRate / enemyIds.length
+      });
+      
+      for (const eIdx of bestCoveredEnemies) {
+        uncovered.delete(eIdx);
+      }
+    }
     
     self.postMessage({
       type: 'SIMULATE_DESTROYER_RESULT',
       myWeaponId,
-      topConfigs: validConfigs
+      topConfigs: finalResults
     });
   }
   else if (data.type === 'UPDATE_EXTRA_WEAPONS') {
