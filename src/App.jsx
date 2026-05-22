@@ -655,11 +655,11 @@ function App() {
       </header>
       
       <main>
-        {mode === 'maintenance' ? (() => {
+        {(() => {
           const mq = maintenanceSearchQuery.toLowerCase();
           const filteredNormal = weapons.filter(w => w.name.toLowerCase().includes(mq));
           const filteredCustom = extraWeapons.filter(w => w.name.toLowerCase().includes(mq));
-          return (
+          return mode !== 'maintenance' ? null : (
           <div className="glass-panel">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
               <h2 style={{ margin: 0, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -782,8 +782,8 @@ function App() {
 
           </div>
           );
-        })()
-        ) : <>
+        })()}
+        {mode !== 'maintenance' && <>
             <div className="glass-panel">
           <div className="tabs">
             {isAdmin && (
