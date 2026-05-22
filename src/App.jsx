@@ -149,6 +149,7 @@ function App() {
   const [wmWeaponSearchQuery, setWmWeaponSearchQuery] = useState('');
   const [targetWeaponSearchQuery, setTargetWeaponSearchQuery] = useState('');
   const [masterConfigSearchQuery, setMasterConfigSearchQuery] = useState('');
+  const [maintenanceSearchQuery, setMaintenanceSearchQuery] = useState('');
   const [editingExtraWeaponId, setEditingExtraWeaponId] = useState(null);
   const [newExtraWeaponName, setNewExtraWeaponName] = useState('');
   const [newExtraWeaponSkills, setNewExtraWeaponSkills] = useState([
@@ -654,9 +655,13 @@ function App() {
       </header>
       
       <main>
-        {mode === 'maintenance' ? (
+        {mode === 'maintenance' ? (() => {
+          const mq = maintenanceSearchQuery.toLowerCase();
+          const filteredNormal = weapons.filter(w => w.name.toLowerCase().includes(mq));
+          const filteredCustom = extraWeapons.filter(w => w.name.toLowerCase().includes(mq));
+          return (
           <div className="glass-panel">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
               <h2 style={{ margin: 0, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 🔧 メンテナンスモード：保存済み武器の数値変更
               </h2>
@@ -669,14 +674,57 @@ function App() {
               </button>
             </div>
 
+            {/* 武器検索バー */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ position: 'relative' }}>
+                <span style={{
+                  position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)',
+                  fontSize: '1rem', pointerEvents: 'none', opacity: 0.5
+                }}>🔍</span>
+                <input
+                  type="text"
+                  placeholder="武器名で検索..."
+                  value={maintenanceSearchQuery}
+                  onChange={e => setMaintenanceSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 36px 10px 38px',
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    color: '#fff',
+                    fontSize: '0.95rem',
+                    boxSizing: 'border-box'
+                  }}
+                />
+                {maintenanceSearchQuery && (
+                  <button
+                    onClick={() => setMaintenanceSearchQuery('')}
+                    style={{
+                      position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', color: 'var(--text-muted)',
+                      cursor: 'pointer', fontSize: '1.1rem', padding: '2px 6px', lineHeight: 1
+                    }}
+                    title="クリア"
+                  >✕</button>
+                )}
+              </div>
+              {maintenanceSearchQuery && (
+                <p style={{ margin: '6px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                  {filteredNormal.length + filteredCustom.length} 件ヒット（通常: {filteredNormal.length}件、カスタム: {filteredCustom.length}件）
+                </p>
+              )}
+            </div>
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
               {/* 通常武器セクション */}
+              {filteredNormal.length > 0 && (
               <div>
                 <h3 style={{ color: '#94a3b8', marginBottom: '12px', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '8px' }}>
-                  📖 通常武器 ({weapons.length}件)
+                  📖 通常武器 ({filteredNormal.length}{maintenanceSearchQuery ? `/${weapons.length}` : ''}件)
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {weapons.map(w => (
+                  {filteredNormal.map(w => (
                     <WeaponEditRow
                       key={w.id}
                       weapon={w}
@@ -691,15 +739,16 @@ function App() {
                   ))}
                 </div>
               </div>
+              )}
 
               {/* カスタム武器セクション */}
-              {extraWeapons.length > 0 && (
+              {filteredCustom.length > 0 && (
                 <div>
                   <h3 style={{ color: '#94a3b8', marginBottom: '12px', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '8px' }}>
-                    ⚙ カスタム武器 ({extraWeapons.length}件)
+                    ⚙ カスタム武器 ({filteredCustom.length}{maintenanceSearchQuery ? `/${extraWeapons.length}` : ''}件)
                   </h3>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {extraWeapons.map(ew => (
+                    {filteredCustom.map(ew => (
                       <WeaponEditRow
                         key={ew.id}
                         weapon={ew}
@@ -721,9 +770,19 @@ function App() {
                   </div>
                 </div>
               )}
+
+              {/* 検索結果なし */}
+              {maintenanceSearchQuery && filteredNormal.length === 0 && filteredCustom.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)' }}>
+                  <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🔍</div>
+                  <p style={{ margin: 0 }}>「{maintenanceSearchQuery}」に一致する武器が見つかりません</p>
+                </div>
+              )}
             </div>
 
           </div>
+          );
+        })()
         ) : <>
             <div className="glass-panel">
           <div className="tabs">
