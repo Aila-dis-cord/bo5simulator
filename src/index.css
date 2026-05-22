@@ -304,10 +304,16 @@ button.primary:disabled {
   background: rgba(0,0,0,0.3);
   color: #fff;
 }
-.admin-login-btn {
+.admin-controls {
   position: absolute;
   top: 15px;
   right: 15px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  z-index: 10;
+}
+.admin-login-btn {
   background: transparent;
   border: 1px solid rgba(255,255,255,0.2);
   color: #f8f8f2;
@@ -319,6 +325,60 @@ button.primary:disabled {
 }
 .admin-login-btn:hover {
   background: rgba(255,255,255,0.1);
+}
+.maintenance-btn {
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  color: #f59e0b;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  backdrop-filter: blur(4px);
+}
+.maintenance-btn:hover {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.6);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.2);
+}
+.maintenance-btn.active {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(245, 158, 11, 0.15));
+  border-color: #ef4444;
+  color: #f87171;
+  font-weight: 600;
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+}
+.maintenance-btn .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #f59e0b;
+  display: inline-block;
+  transition: all 0.3s ease;
+}
+.maintenance-btn.active .dot {
+  background-color: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+  animation: pulse-dot 1.5s infinite;
+}
+@keyframes pulse-dot {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+    box-shadow: 0 0 10px #ef4444;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.6;
+  }
 }
 .legacy-tag {
   color: #ffb86c;

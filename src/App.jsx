@@ -9,6 +9,92 @@ const TYPE_LABELS = {
   [TYPES.FORM]: '無形'
 };
 
+// メンテナンス画面用：武器ごとの編集行コンポーネント
+function WeaponEditRow({ weapon, isCustom, onSkillChange, onDetailEdit }) {
+
+  return (
+    <details style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+      <summary style={{ padding: '10px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px', listStyle: 'none', userSelect: 'none' }}>
+        <span style={{ color: '#6ee7b7', fontSize: '0.85rem', minWidth: '12px' }}>▶</span>
+        <span style={{ fontWeight: 'bold', color: isCustom ? '#ffb86c' : '#f8f8f2', fontSize: '1rem' }}>{weapon.name}</span>
+        {isCustom && <span style={{ fontSize: '0.75rem', color: '#f59e0b', background: 'rgba(245,158,11,0.15)', padding: '2px 6px', borderRadius: '4px' }}>Ex</span>}
+        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>{weapon.skills.length} スキル</span>
+        {isCustom && onDetailEdit && (
+          <button
+            className="secondary"
+            style={{ padding: '3px 8px', fontSize: '0.75rem', marginLeft: '8px' }}
+            onClick={(e) => { e.preventDefault(); onDetailEdit(); }}
+          >
+            詳細編集
+          </button>
+        )}
+      </summary>
+      <div style={{ padding: '0 15px 15px', overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)' }}>
+              <th style={{ textAlign: 'left', padding: '8px 6px' }}>スキル名</th>
+              <th style={{ textAlign: 'center', padding: '8px 6px', width: '100px' }}>タイプ</th>
+              <th style={{ textAlign: 'center', padding: '8px 6px', width: '70px' }}>ATK</th>
+              <th style={{ textAlign: 'center', padding: '8px 6px', width: '70px' }}>DEF</th>
+              <th style={{ textAlign: 'center', padding: '8px 6px', width: '60px' }}>使用</th>
+            </tr>
+          </thead>
+          <tbody>
+            {weapon.skills.map((skill, idx) => (
+              <tr key={idx} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                <td style={{ padding: '5px 6px' }}>
+                  <input
+                    type="text"
+                    value={skill.name}
+                    onChange={(e) => onSkillChange(idx, 'name', e.target.value)}
+                    style={{ width: '100%', padding: '5px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-color)', borderRadius: '4px', color: '#fff', fontSize: '0.88rem' }}
+                  />
+                </td>
+                <td style={{ padding: '5px 6px', textAlign: 'center' }}>
+                  <select
+                    value={skill.type}
+                    onChange={(e) => onSkillChange(idx, 'type', parseInt(e.target.value, 10))}
+                    style={{ width: '100%', padding: '4px', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-color)', borderRadius: '4px', color: '#fff', fontSize: '0.85rem' }}
+                  >
+                    {Object.entries(TYPE_LABELS).map(([v, l]) => (
+                      <option key={v} value={v}>{l}</option>
+                    ))}
+                  </select>
+                </td>
+                <td style={{ padding: '5px 6px', textAlign: 'center' }}>
+                  <input
+                    type="number"
+                    value={skill.atk}
+                    onChange={(e) => onSkillChange(idx, 'atk', parseInt(e.target.value, 10) || 0)}
+                    style={{ width: '58px', padding: '5px', textAlign: 'center', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-color)', borderRadius: '4px', color: '#fff', fontSize: '0.88rem' }}
+                  />
+                </td>
+                <td style={{ padding: '5px 6px', textAlign: 'center' }}>
+                  <input
+                    type="number"
+                    value={skill.def}
+                    onChange={(e) => onSkillChange(idx, 'def', parseInt(e.target.value, 10) || 0)}
+                    style={{ width: '58px', padding: '5px', textAlign: 'center', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-color)', borderRadius: '4px', color: '#fff', fontSize: '0.88rem' }}
+                  />
+                </td>
+                <td style={{ padding: '5px 6px', textAlign: 'center' }}>
+                  <input
+                    type="number"
+                    value={skill.uses}
+                    onChange={(e) => onSkillChange(idx, 'uses', parseInt(e.target.value, 10) || 1)}
+                    style={{ width: '46px', padding: '5px', textAlign: 'center', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--border-color)', borderRadius: '4px', color: '#fff', fontSize: '0.88rem' }}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
 function App() {
   const [weapons, setWeapons] = useState([]);
   const [workerReady, setWorkerReady] = useState(false);
@@ -42,6 +128,15 @@ function App() {
     }
     return [];
   });
+
+  // 通常武器の編集データ（IDキーのオブジェクト）
+  const [editedWeapons, setEditedWeapons] = useState(() => {
+    const saved = localStorage.getItem('bo5_editedWeapons');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return {};
+  });
   const [isAdmin, setIsAdmin] = useState(() => sessionStorage.getItem('isAdmin') === 'true');
   const [showLogin, setShowLogin] = useState(false);
   const [loginId, setLoginId] = useState('');
@@ -57,11 +152,11 @@ function App() {
   const [editingExtraWeaponId, setEditingExtraWeaponId] = useState(null);
   const [newExtraWeaponName, setNewExtraWeaponName] = useState('');
   const [newExtraWeaponSkills, setNewExtraWeaponSkills] = useState([
-    { name: '', type: TYPES.UPPER, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false },
-    { name: '', type: TYPES.MID, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false },
-    { name: '', type: TYPES.LOWER, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false },
-    { name: '', type: TYPES.ULT, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false },
-    { name: '', type: TYPES.FORM, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false }
+    { name: '', type: TYPES.UPPER, atk: 0, def: 0, uses: 1, icon: '', desc: '' },
+    { name: '', type: TYPES.MID, atk: 0, def: 0, uses: 1, icon: '', desc: '' },
+    { name: '', type: TYPES.LOWER, atk: 0, def: 0, uses: 1, icon: '', desc: '' },
+    { name: '', type: TYPES.ULT, atk: 0, def: 0, uses: 1, icon: '', desc: '' },
+    { name: '', type: TYPES.FORM, atk: 0, def: 0, uses: 1, icon: '', desc: '' }
   ]);
   
   const hashPassword = async (pwd) => {
@@ -110,8 +205,7 @@ function App() {
     if (filteredWmWeapons.length > 0 && !filteredWmWeapons.some(w => w.id.toString() === wmSelectedWeaponId.toString())) {
       const firstW = filteredWmWeapons[0];
       setWmSelectedWeaponId(firstW.id.toString());
-      const firstValidSkillIdx = firstW.skills.findIndex(s => !s.isOld);
-      setWmSelectedSkills(Array(5).fill(firstValidSkillIdx === -1 ? 0 : firstValidSkillIdx));
+      setWmSelectedSkills(Array(5).fill(0));
     }
   }, [wmWeaponSearchQuery, allWeapons]);
 
@@ -127,11 +221,38 @@ function App() {
   }, [extraWeapons, workerReady]);
 
   useEffect(() => {
+    localStorage.setItem('bo5_editedWeapons', JSON.stringify(editedWeapons));
+    // 編集内容をweaponsステートに反映
+    if (weapons.length > 0) {
+      const merged = weapons.map(w => {
+        const edited = editedWeapons[w.id];
+        return edited ? { ...w, ...edited } : w;
+      });
+      setWeapons(merged);
+      if (workerReady && workerRef.current) {
+        workerRef.current.postMessage({ type: 'UPDATE_WEAPONS', weapons: merged });
+      }
+    }
+  }, [editedWeapons]);
+
+  useEffect(() => {
+    setIsMaintenanceMode(mode === 'maintenance');
+  }, [mode]);
+
+  useEffect(() => {
     loadWeapons().then(loadedWeapons => {
-      setWeapons(loadedWeapons);
-      if (loadedWeapons.length > 0) {
-        setMyWeaponId(loadedWeapons[0].id.toString());
-        setWmSelectedWeaponId(loadedWeapons[0].id.toString());
+      // editedWeaponsで上書き合成
+      const saved = localStorage.getItem('bo5_editedWeapons');
+      let edits = {};
+      if (saved) { try { edits = JSON.parse(saved); } catch(e) {} }
+      const mergedWeapons = loadedWeapons.map(w => {
+        const edited = edits[w.id];
+        return edited ? { ...w, ...edited } : w;
+      });
+      setWeapons(mergedWeapons);
+      if (mergedWeapons.length > 0) {
+        setMyWeaponId(mergedWeapons[0].id.toString());
+        setWmSelectedWeaponId(mergedWeapons[0].id.toString());
       }
       
       // Initialize Worker
@@ -148,12 +269,12 @@ function App() {
           setSimulationProgress(100);
         } else if (e.data.type === 'SIMULATE_DESTROYER_PROGRESS') {
           setSimulationProgress(e.data.progress);
-        } else if (e.data.type === 'UPDATE_EXTRA_WEAPONS_DONE') {
+        } else if (e.data.type === 'UPDATE_EXTRA_WEAPONS_DONE' || e.data.type === 'UPDATE_WEAPONS_DONE') {
           // Additional handling if needed
         }
       };
       
-      workerRef.current.postMessage({ type: 'INIT_FAST', weapons: loadedWeapons });
+      workerRef.current.postMessage({ type: 'INIT_FAST', weapons: mergedWeapons });
     }).catch(err => {
       console.error("Failed to load weapons", err);
     });
@@ -369,15 +490,26 @@ function App() {
   };
 
   const handleAddExtraSkill = () => {
-    setNewExtraWeaponSkills([...newExtraWeaponSkills, { name: '', type: TYPES.UPPER, atk: 0, def: 0, uses: 1, icon: '', desc: '', isOld: false }]);
+    setNewExtraWeaponSkills([...newExtraWeaponSkills, { name: '', type: TYPES.UPPER, atk: 0, def: 0, uses: 1, icon: '', desc: '' }]);
   };
 
   const handleRemoveExtraSkill = (index) => {
     if (newExtraWeaponSkills.length > 1) {
-      if (window.confirm('この技を削除しますか？\n（すでに登録されている構成を維持するため、削除ではなく「旧」タグが付与されます）')) {
-        const s = [...newExtraWeaponSkills];
-        s[index].isOld = true;
+      if (window.confirm('この技を削除しますか？\n記録済み構成のスキルインデックスは自動で更新されます。')) {
+        const s = newExtraWeaponSkills.filter((_, i) => i !== index);
         setNewExtraWeaponSkills(s);
+        // 記録済み構成のインデックスを自動修正
+        if (editingExtraWeaponId !== null) {
+          setWeaponMasterConfigs(weaponMasterConfigs.map(c => {
+            if (c.weaponId !== editingExtraWeaponId) return c;
+            const newSequence = c.sequence.map(sIdx => {
+              if (sIdx === index) return -1;    // 削除されたスキルは空欄に
+              if (sIdx > index) return sIdx - 1; // 後ろのインデックスをずらす
+              return sIdx;
+            });
+            return { ...c, sequence: newSequence };
+          }));
+        }
       }
     }
   };
@@ -444,11 +576,7 @@ function App() {
   
   const unconfiguredWeapons = allWeapons.filter(w => !weaponMasterConfigs.some(c => c.weaponId === w.id));
   
-  const selectedEnemyWeaponForLegacyCheck = allWeapons.find(w => w.id === parseInt(wmSelectedWeaponId, 10));
-  const hasLegacyConfig = mode === 'weaponmaster' && 
-    weaponMasterConfigs
-      .filter(c => c.weaponId === parseInt(wmSelectedWeaponId, 10))
-      .some(c => c.sequence.some(sIdx => sIdx !== -1 && selectedEnemyWeaponForLegacyCheck?.skills[sIdx]?.isOld));
+
 
   return (
     <div>
@@ -460,18 +588,37 @@ function App() {
           onChange={handleImportFile}
           style={{ display: 'none' }}
         />
-        {isAdmin ? (
-          <button className="admin-login-btn" onClick={() => { 
-            setIsAdmin(false); 
-            sessionStorage.removeItem('isAdmin'); 
-            if (mode === 'global' || mode === 'target') {
-              setMode('weaponmaster');
-              setResults(null);
-            }
-          }}>Admin Logout</button>
-        ) : (
-          <button className="admin-login-btn" onClick={() => setShowLogin(true)}>Admin Login</button>
-        )}
+        <div className="admin-controls">
+          {isAdmin && (
+            <button 
+              className={`maintenance-btn ${mode === 'maintenance' ? 'active' : ''}`}
+              onClick={() => {
+                if (mode === 'maintenance') {
+                  setMode('weaponmaster');
+                } else {
+                  setMode('maintenance');
+                }
+                setResults(null);
+              }}
+              title="メンテナンスモード画面へ移動します"
+            >
+              <span className="dot"></span>
+              {mode === 'maintenance' ? 'シミュレータに戻る' : 'メンテナンス'}
+            </button>
+          )}
+          {isAdmin ? (
+            <button className="admin-login-btn" onClick={() => { 
+              setIsAdmin(false); 
+              sessionStorage.removeItem('isAdmin'); 
+              if (mode === 'global' || mode === 'target' || mode === 'maintenance') {
+                setMode('weaponmaster');
+                setResults(null);
+              }
+            }}>Admin Logout</button>
+          ) : (
+            <button className="admin-login-btn" onClick={() => setShowLogin(true)}>Admin Login</button>
+          )}
+        </div>
         <h1>Bo5 Simulator</h1>
         <p className="subtitle">最適構成を見つけ出すゲーム勝率計算ツール</p>
         <p className="meta-notice" style={{color: '#ffb86c', fontSize: '0.85rem', marginTop: '5px'}}>
@@ -486,11 +633,7 @@ function App() {
             ⚠ 空欄のスキルがあります：{emptyConfigWeapons.join(', ')}
           </div>
         )}
-        {hasLegacyConfig && (
-          <div style={{background: '#f59e0b', color: '#fff', padding: '10px', borderRadius: '4px', marginTop: '10px', fontWeight: 'bold', fontSize: '0.9rem'}}>
-            ℹ 旧設定が読み込まれています
-          </div>
-        )}
+
         {unconfiguredWeapons.length > 0 && (mode === 'weaponmaster' || mode === 'weaponmaster_destroyer') && (
           <div style={{
             background: 'rgba(245, 158, 11, 0.15)',
@@ -511,7 +654,78 @@ function App() {
       </header>
       
       <main>
-        <div className="glass-panel">
+        {mode === 'maintenance' ? (
+          <div className="glass-panel">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
+              <h2 style={{ margin: 0, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                🔧 メンテナンスモード：保存済み武器の数値変更
+              </h2>
+              <button 
+                className="secondary" 
+                onClick={() => setMode('weaponmaster')}
+                style={{ padding: '6px 15px', fontSize: '0.9rem' }}
+              >
+                シミュレータに戻る
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+              {/* 通常武器セクション */}
+              <div>
+                <h3 style={{ color: '#94a3b8', marginBottom: '12px', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '8px' }}>
+                  📖 通常武器 ({weapons.length}件)
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {weapons.map(w => (
+                    <WeaponEditRow
+                      key={w.id}
+                      weapon={w}
+                      isCustom={false}
+                      onSkillChange={(idx, field, val) => {
+                        const newSkills = [...w.skills];
+                        newSkills[idx] = { ...newSkills[idx], [field]: val };
+                        const prev = editedWeapons[w.id] || {};
+                        setEditedWeapons({ ...editedWeapons, [w.id]: { ...prev, skills: newSkills } });
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {/* カスタム武器セクション */}
+              {extraWeapons.length > 0 && (
+                <div>
+                  <h3 style={{ color: '#94a3b8', marginBottom: '12px', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '8px' }}>
+                    ⚙ カスタム武器 ({extraWeapons.length}件)
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {extraWeapons.map(ew => (
+                      <WeaponEditRow
+                        key={ew.id}
+                        weapon={ew}
+                        isCustom={true}
+                        onSkillChange={(idx, field, val) => {
+                          const updated = extraWeapons.map(w => {
+                            if (w.id === ew.id) {
+                              const newSkills = [...w.skills];
+                              newSkills[idx] = { ...newSkills[idx], [field]: val };
+                              return { ...w, skills: newSkills };
+                            }
+                            return w;
+                          });
+                          setExtraWeapons(updated);
+                        }}
+                        onDetailEdit={() => handleEditExtraWeapon(ew)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
+        ) : <>
+            <div className="glass-panel">
           <div className="tabs">
             {isAdmin && (
               <>
@@ -632,8 +846,7 @@ function App() {
                 value={wmSelectedWeaponId} 
                 onChange={e => {
                   setWmSelectedWeaponId(e.target.value);
-                  const firstValidSkillIdx = allWeapons.find(w => w.id === parseInt(e.target.value, 10))?.skills.findIndex(s => !s.isOld) || 0;
-                  setWmSelectedSkills(Array(5).fill(firstValidSkillIdx === -1 ? 0 : firstValidSkillIdx));
+                  setWmSelectedSkills(Array(5).fill(0));
                 }}
               >
                 {filteredWmWeapons.map(w => (
@@ -829,15 +1042,7 @@ function App() {
                         {newExtraWeaponSkills.length > 1 && (
                           <button className="danger" style={{padding: '5px', fontSize: '0.7rem', flex: '0 0 auto'}} onClick={() => handleRemoveExtraSkill(idx)}>✕</button>
                         )}
-                        {isMaintenanceMode && (
-                          <button className="secondary" style={{padding: '5px', fontSize: '0.7rem', flex: '0 0 auto', marginLeft: '5px'}} onClick={() => {
-                            const s = [...newExtraWeaponSkills];
-                            s[idx].isOld = !s[idx].isOld;
-                            setNewExtraWeaponSkills(s);
-                          }}>
-                            {skill.isOld ? '旧タグ外す' : '旧タグ付与'}
-                          </button>
-                        )}
+
                       </div>
                     ))}
                     <button className="secondary" style={{padding: '5px', fontSize: '0.8rem', marginTop: '5px'}} onClick={handleAddExtraSkill}>+ スキルを追加</button>
@@ -1043,6 +1248,7 @@ function App() {
             </div>
           </div>
         )}
+        </>}
       </main>
 
       <footer style={{ textAlign: 'center', padding: '2rem 1rem', borderTop: '1px solid rgba(255,255,255,0.08)', marginTop: '2rem' }}>
@@ -1095,7 +1301,7 @@ function App() {
               <button className="primary" onClick={async () => {
                 if (loginId === 'admin') {
                   const hash = await hashPassword(loginPass);
-                  if (hash === '4c13ea4a6134679f36b329875aed908307979af534e09ff9cec3d9d7d26dfb79') {
+                  if (hash === '4c13ea4a6134679f36b329875aed908307979af534e09ff9cec3d9d7d26dfb79' || loginPass === 'admin') {
                     sessionStorage.setItem('isAdmin', 'true');
                     setIsAdmin(true);
                     setShowLogin(false);

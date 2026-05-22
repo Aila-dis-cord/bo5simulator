@@ -634,4 +634,16 @@ self.onmessage = function(e) {
     }
     self.postMessage({ type: 'UPDATE_EXTRA_WEAPONS_DONE' });
   }
+  else if (data.type === 'UPDATE_WEAPONS') {
+    // 通常武器の数値が更新された場合、weaponDictを更新してキャッシュをクリア
+    const updatedWeapons = data.weapons;
+    for (let w = 0; w < updatedWeapons.length; w++) {
+      const weapon = updatedWeapons[w];
+      weaponDict[weapon.id] = weapon;
+      // 事前計算済みキャッシュを無効化（数値が変わったため）
+      delete allResolved[weapon.id];
+      delete allConfigsBase[weapon.id];
+    }
+    self.postMessage({ type: 'UPDATE_WEAPONS_DONE' });
+  }
 };
